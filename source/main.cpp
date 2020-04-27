@@ -9,19 +9,17 @@
 #include <exception>
 #include <stdexcept>
 #include <typeinfo>
+#include <memory>
+
+#include <task_manager/SimpleCommandLineProcessor.h>
 
 int main()
 {
 	std::exception_ptr exceptionPtr;
 	try
 	{
-		std::string cmd;
-		while(cmd != "exit")
-		{
-			std::cout << "TASK_MANAGER>";
-			std::cin >> cmd;
-			std::cout << "Command " << cmd << std::endl;
-		}
+		std::shared_ptr<task_manager::CommandLineProcessor> commandLineProcessor_ptr = std::make_shared<task_manager::SimpleCommandLineProcessor>();
+		commandLineProcessor_ptr->startCmdLine();
 	}
 	catch(...)
 	{
