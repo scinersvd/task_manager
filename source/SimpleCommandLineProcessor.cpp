@@ -29,7 +29,8 @@ void SimpleCommandLineProcessor::setIsExit(bool bIsExit)
 
 void SimpleCommandLineProcessor::processCmd(const std::string& cmd)
 {
-	if(StringUtils::trim(cmd) == "exit")
+	std::string trimmed_cmd = StringUtils::trim(cmd);
+	if(trimmed_cmd == "exit" || trimmed_cmd == "quit")
 		setIsExit(true);
 	else
 		std::cout << "Setup command: " << cmd << std::endl;

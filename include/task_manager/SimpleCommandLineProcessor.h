@@ -34,7 +34,7 @@ public:
 	bool getIsExit() const;
 	/**
 	 * @brief Устанавливает значение поля bIsExit
-	 * @param[in] Значение для поля bIsExit
+	 * @param[in] bIsExit Значение для поля bIsExit
 	 */
 	void setIsExit(bool bIsExit);
 protected:

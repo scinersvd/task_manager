@@ -7,6 +7,7 @@ include_directories(include)
 set(SOURCES source/main.cpp
 			source/CommandLineProcessor.cpp
 			source/SimpleCommandLineProcessor.cpp
+			source/SimpleTaskManager.cpp
 			source/StringUtils.cpp
 			)
 

@@ -11,14 +11,14 @@
 #include <typeinfo>
 #include <memory>
 
-#include <task_manager/SimpleCommandLineProcessor.h>
+#include <task_manager/SimpleTaskManager.h>
 
 int main()
 {
 	std::exception_ptr exceptionPtr;
 	try
 	{
-		std::shared_ptr<task_manager::CommandLineProcessor> commandLineProcessor_ptr = std::make_shared<task_manager::SimpleCommandLineProcessor>();
+		std::shared_ptr<task_manager::CommandLineProcessor> commandLineProcessor_ptr = std::make_shared<task_manager::SimpleTaskManager>();
 		commandLineProcessor_ptr->startCmdLine();
 	}
 	catch(...)
