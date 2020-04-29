@@ -12,14 +12,31 @@
 namespace task_manager
 {
 
+CommandLineProcessor::unknown_cmd::unknown_cmd(const std::string& cmd) : cmd(cmd)
+{
+}
+const char* CommandLineProcessor::unknown_cmd::what() const noexcept
+{
+	static std::string str;
+	str = "Unknown command: " + cmd;
+	return str.c_str();
+}
+
 void CommandLineProcessor::startCmdLine()
 {
 	std::string cmd;
 	while(!checkIsExit())
 	{
 		std::cout << getCmdAuthor() + ">";
-		std::cin >> cmd;
-		processCmd(cmd);
+		std::getline(std::cin, cmd);
+		try
+		{
+			processCmd(cmd);
+		}
+		catch(const unknown_cmd& exc)
+		{
+			std::cout << exc.what() << std::endl;
+		}
 	}
 }
 

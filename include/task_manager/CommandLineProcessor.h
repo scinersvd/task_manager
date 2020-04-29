@@ -23,6 +23,20 @@ namespace task_manager
 class CommandLineProcessor
 {
 public:
+	/**
+	 * @brief Класс-исключение
+	 * Обрабатывает ситуацию когда введена неизвестная команда
+	 */
+	class unknown_cmd : public std::exception
+	{
+	public:
+		unknown_cmd() = default;
+		unknown_cmd(const std::string& cmd);
+		const char* what() const noexcept override;
+	private:
+		std::string cmd;
+	};
+public:
 	CommandLineProcessor() = default;
 	virtual ~CommandLineProcessor() = default;
 public:

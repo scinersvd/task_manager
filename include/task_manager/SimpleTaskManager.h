@@ -25,7 +25,21 @@ namespace task_manager
 class Task
 {
 public:
+	/**
+	 * @brief Тип данных для идентификатора задачи
+	 */
 	typedef int Id;
+
+	/**
+	 * @brief Класс-исключение
+	 * Обрабатывает ситуацию когда введена строка, которую невозможно преобразовать в идентификатор задачи
+	 */
+	class bad_cast_str_to_task_id : public std::exception
+	{
+	public:
+		bad_cast_str_to_task_id() = default;
+	};
+	static const Id unknown_task_id = -1;
 public:
 	/**
 	 * @brief Создает новую задачу с идентификатором id
@@ -55,6 +69,24 @@ private:
 	 * @brief Идентификатор задачи
 	 */
 	Id id;
+public:
+	/**
+	 * @brief Преобразовывает строку в значение для типа данных идентификатора задачи
+	 * @param[in] Строка с идентификатором задачи
+	 */
+	static Id strToId(const std::string& str);
+};
+
+/**
+ * @brief Задача таймер
+ * Выдает текущее время через интервалы времени
+ */
+class TimerTask : public Task
+{
+public:
+	TimerTask(Id id);
+	virtual ~TimerTask() = default;
+	void run();
 };
 
 /**
@@ -105,6 +137,16 @@ private:
 	 * @brief Список задач
 	 */
 	std::list<std::shared_ptr<Task> > taskList;
+protected:
+	void processCmd(const std::string& cmd) override;
+// Внутренние функции
+protected:
+	/**
+	 * @brief Получает идентификатор задачи из командной строки
+	 * @param[cmd] Строка содержащая командную строку
+	 */
+	virtual Task::Id getIdFromCmd(const std::string& cmd);
+	virtual bool isCmdName(const std::string& cmd_name);
 };
 
 } /* namespace task_manager */

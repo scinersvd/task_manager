@@ -8,6 +8,8 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <limits>
 
 /**
 namespace task_manager
@@ -35,6 +37,14 @@ public:
 	 * @return Обработанная строка после удаления пробельных символов
 	 */
 	static std::string trim(const std::string& str);
+	/**
+	 * @brief Разбивает строку на слова
+	 * @param[in] str Входная строка для отбработки
+	 * @param[out] str_list Массив строк для записи слов
+	 * @param[in] max_count максимальное кол-во слов для выборки, если не указано то выбираются все слова
+	 * @return Итератор в исходной строке на котором остановилась работа функции
+	 */
+	static std::string::const_iterator split(const std::string& str, std::vector<std::string>& str_list, int max_count = std::numeric_limits<int>::max());
 };
 
 } /* namespace task_manager */
