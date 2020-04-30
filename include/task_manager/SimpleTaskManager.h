@@ -12,6 +12,7 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <mutex>
 
 #include <task_manager/SimpleCommandLineProcessor.h>
 
@@ -180,10 +181,30 @@ public:
 	 */
 	TimerTask& setWorkTime(std::chrono::seconds sec);
 private:
+	/**
+	 * @brief Признак завершенности задачи
+	 */
 	std::atomic<bool> isStop;
+	/**
+	 * @brief Признак временной остановки задачи
+	 */
 	std::atomic<bool> isPause;
+	/**
+	 * @brief Интервал таймера
+	 */
 	std::chrono::seconds interval;
+	/**
+	 * @brief Время работы таймера
+	 */
 	std::chrono::seconds workTime;
+	/**
+	 * @brief Счеткик работы таймера
+	 */
+	std::chrono::seconds currentTimerCount;
+	/**
+	 * @brief Мьютекс для защиты счетчика
+	 */
+	std::mutex count_mutex;
 };
 
 /**

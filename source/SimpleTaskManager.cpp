@@ -95,7 +95,10 @@ TimerTask::TimerTask(Id id)
 
 std::pair<int, int> TimerTask::getProgress()
 {
-	return std::pair<int, int>(0, 0);
+	std::lock_guard<std::mutex> lk(count_mutex);
+	long f = currentTimerCount.count();
+	long s = workTime.count();
+	return std::pair<int, int>(f, s);
 }
 
 void TimerTask::stop()
@@ -115,7 +118,13 @@ void TimerTask::resume()
 
 void TimerTask::info()
 {
-	std::cout << "task " << getId() << ": stopped = " << isStop.load() << " paused = " << isPause.load() << std::endl;
+	std::cout << "task " << getId() << ": ";
+	{
+		std::lock_guard<std::mutex> lk(count_mutex);
+		if(workTime.count() != 0)
+			std::cout << float(currentTimerCount.count()) / float(workTime.count());
+	}
+	std::cout << " stopped = " << isStop.load() << " paused = " << isPause.load() << std::endl;
 }
 
 void TimerTask::run()
@@ -133,7 +142,11 @@ void TimerTask::run()
 			std::chrono::time_point<std::chrono::system_clock> current_time_point = std::chrono::system_clock::now();
 			std::time_t ttp = std::chrono::system_clock::to_time_t(current_time_point);
 			std::cout << std::endl <<"Timer " << getId() << ": " << std::ctime(&ttp);
-			if(std::chrono::duration_cast<std::chrono::seconds>(current_time_point - start_time_point) >= workTime)
+			{
+				std::lock_guard<std::mutex> lk(count_mutex);
+				currentTimerCount = std::chrono::duration_cast<std::chrono::seconds>(current_time_point - start_time_point);
+			}
+			if(currentTimerCount >= workTime)
 			{
 				std::cout << std::endl <<"Timer " << getId() << " work time ends" << std::endl;
 				stop();
