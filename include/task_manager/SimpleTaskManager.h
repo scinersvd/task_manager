@@ -9,6 +9,9 @@
 
 #include <list>
 #include <memory>
+#include <thread>
+#include <atomic>
+#include <chrono>
 
 #include <task_manager/SimpleCommandLineProcessor.h>
 
@@ -39,42 +42,97 @@ public:
 	public:
 		bad_cast_str_to_task_id() = default;
 	};
-	static const Id unknown_task_id = -1;
+
+	/**
+	 * @brief Неопределенный идентификатор
+	 */
+	const static Id unknown_task_id = -1;
+
+	/**
+	 * @brief Первый идентификатор
+	 */
+	const static Id first_task_id = 1;
 public:
 	/**
 	 * @brief Создает новую задачу с идентификатором id
 	 * @param[in] id Идентификатор задачи
 	 */
 	Task(Id id);
-	virtual ~Task() = default;
+	virtual ~Task();
 public:
 	/**
-	 * @brief Функция непосредственно выполняющая задание
+	 * @brief Стартует задачу асинхронно в другом потоке
 	 */
-	virtual void run() = 0;
+	virtual void startAsync();
+	/**
+	 * @brief Досрочно завершает задачу
+	 */
+	virtual void stop() = 0;
+	/**
+	 * @brief Приостанавливает задачу
+	 */
+	virtual void pause() = 0;
+	/**
+	 * @brief Продолжает выполнение приостановленной задачи
+	 */
+	virtual void resume() = 0;
+	/**
+	 * @brief Печатает в консоль информацию о задаче в виде одной строки
+	 */
+	virtual void info();
 	/**
 	 * @brief Возвращает прогресс задачи
 	 * @return Пара чисел, первое число - текущее значение счетчика выполнения, второе - максимальное значение счетчика
 	 * Если второе значение меньше либо равно 0, то данная задача не поддерживает измерение прогресса выполнения
 	 */
-	virtual std::pair<int, int> getProgress() = 0;
+	virtual std::pair<int, int> getProgress();
+protected:
+	/**
+	 * @brief Функция непосредственно выполняющая задание
+	 */
+	virtual void run() = 0;
 public:
 	/**
 	 * @brief Возвращает идентификатор задачи
 	 * @return Идентификатор задачи
 	 */
 	Id getId() const;
+	/**
+	 * @brief Возвращает задержку старта
+	 * @return Задержка старта в секундах
+	 */
+	std::chrono::seconds getStartDelay() const;
+	/**
+	 * @brief Устанавливает задержку старта
+	 * @param[in] Задержка старта в секундах
+	 * @return Ссылку на текущий экземпляр задачи
+	 */
+	Task& setStartDelay(std::chrono::seconds sec);
 private:
 	/**
 	 * @brief Идентификатор задачи
 	 */
 	Id id;
+	/**
+	 * @brief Указатель на поток в котором задача выполняется асинхронно
+	 */
+	std::shared_ptr<std::thread> thread_ptr;
+	/**
+	 * @brief Интервал в секундах, через который запуститься задача после ввода команды
+	 */
+	std::chrono::seconds startDelay;
 public:
 	/**
 	 * @brief Преобразовывает строку в значение для типа данных идентификатора задачи
 	 * @param[in] Строка с идентификатором задачи
 	 */
 	static Id strToId(const std::string& str);
+	/**
+	 * @brief Генерирует следующий идентификатор на основе предыдущего
+	 * @param[in] id Идентификатор задачи
+	 * @return Сгенерированый идентификатор задачи
+	 */
+	static Id generateNextId(const Id& id);
 };
 
 /**
@@ -84,9 +142,48 @@ public:
 class TimerTask : public Task
 {
 public:
+	/**
+	 * @brief Создает задачу-таймер
+	 * @param[in] id идентификатор задачи
+	 */
 	TimerTask(Id id);
 	virtual ~TimerTask() = default;
-	void run();
+public:
+	std::pair<int, int> getProgress() override;
+	void stop() override;
+	void pause() override;
+	void resume() override;
+	void info() override;
+protected:
+	void run() override;
+public:
+	/**
+	 * @brief Возвращает интервал таймера
+	 * @return Интервал таймера
+	 */
+	std::chrono::seconds getInterval() const;
+	/**
+	 * @brief Устанавливает интервал таймера
+	 * @param[in] Интервал таймера
+	 * @return Ссылку на текущий экземпляр задачи
+	 */
+	TimerTask& setInterval(std::chrono::seconds sec);
+	/**
+	 * @brief Возвращает время работы таймера
+	 * @return Время работы таймера
+	 */
+	std::chrono::seconds getWorkTime() const;
+	/**
+	 * @brief Устанавливает время работы таймера
+	 * @param[in] Время работы таймера
+	 * @return Ссылку на текущий экземпляр задачи
+	 */
+	TimerTask& setWorkTime(std::chrono::seconds sec);
+private:
+	std::atomic<bool> isStop;
+	std::atomic<bool> isPause;
+	std::chrono::seconds interval;
+	std::chrono::seconds workTime;
 };
 
 /**
@@ -97,7 +194,7 @@ class SimpleTaskManager: public SimpleCommandLineProcessor
 {
 public:
 	SimpleTaskManager() = default;
-	virtual ~SimpleTaskManager() = default;
+	virtual ~SimpleTaskManager();
 protected:
 	/**
 	 * @brief Добавление задачи
@@ -139,14 +236,25 @@ private:
 	std::list<std::shared_ptr<Task> > taskList;
 protected:
 	void processCmd(const std::string& cmd) override;
-// Внутренние функции
+// Internal functions
 protected:
 	/**
 	 * @brief Получает идентификатор задачи из командной строки
 	 * @param[cmd] Строка содержащая командную строку
 	 */
 	virtual Task::Id getIdFromCmd(const std::string& cmd);
+	/**
+	 * @brief Проверяет - является ли строка именем команды
+	 * @param[cmd] Строка имя команды
+	 * @return true если строка является именем команды и false в обратном случае
+	 */
 	virtual bool isCmdName(const std::string& cmd_name);
+	/**
+	 * @brief Находит задачу в списке по идентификатору
+	 * @param[cmd] Строка имя команды
+	 * @return true если строка является именем команды и false в обратном случае
+	 */
+	virtual bool findTask(const Task::Id& id, std::shared_ptr<Task>& task);
 };
 
 } /* namespace task_manager */

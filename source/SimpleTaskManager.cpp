@@ -10,6 +10,7 @@
 #include <thread>
 #include <stdexcept>
 #include <set>
+#include <algorithm>
 
 #include <task_manager/SimpleTaskManager.h>
 #include <task_manager/StringUtils.h>
@@ -17,13 +18,49 @@
 namespace task_manager
 {
 
-Task::Task(Task::Id id) : id(id)
+Task::Task(Task::Id id) : id(id), startDelay{0}
 {
+}
+
+Task::~Task()
+{
+	if(thread_ptr && thread_ptr->joinable())
+		thread_ptr->join();
+}
+
+void Task::startAsync()
+{
+	thread_ptr = std::make_shared<std::thread>([this](){run();});
+}
+
+void Task::info()
+{
+	std::pair<int, int> progress = getProgress();
+	if(progress.second != 0)
+		std::cout << "task " << getId() << ": " << float(progress.first) / float(progress.second);
+	else
+		std::cout << "task " << getId() << ": progress not supported";
+}
+
+std::pair<int, int> Task::getProgress()
+{
+	return std::pair<int, int>(0, 0);
 }
 
 Task::Id Task::getId() const
 {
 	return id;
+}
+
+std::chrono::seconds Task::getStartDelay() const
+{
+	return startDelay;
+}
+
+Task& Task::setStartDelay(std::chrono::seconds sec)
+{
+	startDelay = sec;
+	return *this;
 }
 
 Task::Id Task::strToId(const std::string& str)
@@ -42,39 +79,173 @@ Task::Id Task::strToId(const std::string& str)
 	}
 }
 
+Task::Id Task::generateNextId(const Task::Id& id)
+{
+	return id + 1;
+}
+
+TimerTask::TimerTask(Id id)
+	: Task(id),
+	  isStop(false),
+	  isPause(false),
+	  interval{5},
+	  workTime{300}
+{
+}
+
+std::pair<int, int> TimerTask::getProgress()
+{
+	return std::pair<int, int>(0, 0);
+}
+
+void TimerTask::stop()
+{
+	isStop = true;
+}
+
+void TimerTask::pause()
+{
+	isPause = true;
+}
+
+void TimerTask::resume()
+{
+	isPause = false;
+}
+
+void TimerTask::info()
+{
+	std::cout << "task " << getId() << ": stopped = " << isStop.load() << " paused = " << isPause.load() << std::endl;
+}
+
 void TimerTask::run()
 {
-	while(true)
+	std::this_thread::sleep_for(getStartDelay());
+	if(!isStop.load())
+		std::cout << std::endl << "Timer task "<< getId() <<" was started" << std::endl;
+	std::chrono::time_point<std::chrono::system_clock> start_time_point = std::chrono::system_clock::now();
+	while(!isStop.load())
 	{
-		std::chrono::time_point<std::chrono::system_clock> current_time_point = std::chrono::system_clock::now();
-		std::time_t ttp = std::chrono::system_clock::to_time_t(current_time_point);
-		std::cout << "time: " << std::ctime(&ttp);
-		std::this_thread::sleep_for(std::chrono::minutes{1});
+		if(isPause.load())
+			std::this_thread::yield();
+		else
+		{
+			std::chrono::time_point<std::chrono::system_clock> current_time_point = std::chrono::system_clock::now();
+			std::time_t ttp = std::chrono::system_clock::to_time_t(current_time_point);
+			std::cout << std::endl <<"Timer " << getId() << ": " << std::ctime(&ttp);
+			if(std::chrono::duration_cast<std::chrono::seconds>(current_time_point - start_time_point) >= workTime)
+			{
+				std::cout << std::endl <<"Timer " << getId() << " work time ends" << std::endl;
+				stop();
+				break;
+			}
+			std::this_thread::sleep_for(interval);
+		}
 	}
+	std::cout << "Timer " << getId() << " stopped" << std::endl;
+}
+
+std::chrono::seconds TimerTask::getInterval() const
+{
+	return interval;
+}
+
+TimerTask& TimerTask::setInterval(std::chrono::seconds sec)
+{
+	interval = sec;
+	return *this;
+}
+
+std::chrono::seconds TimerTask::getWorkTime() const
+{
+	return workTime;
+}
+
+TimerTask& TimerTask::setWorkTime(std::chrono::seconds sec)
+{
+	workTime = sec;
+	return *this;
+}
+
+SimpleTaskManager::~SimpleTaskManager()
+{
+	std::for_each(taskList.begin(), taskList.end(), [](auto& task){task->stop();});
 }
 
 void SimpleTaskManager::add_task(const std::string& cmd)
 {
+	Task::Id id = Task::first_task_id;
+	if(!taskList.empty())
+		id = Task::generateNextId(taskList.front()->getId());
+	std::shared_ptr<TimerTask> new_task = std::make_shared<TimerTask>(id);
+
+	std::vector<std::string> str_list;
+	auto it = StringUtils::split(cmd, str_list, 3);
+	try
+	{
+		if(str_list.size() > 0)
+			new_task->setStartDelay(std::chrono::seconds(std::stoi(str_list[0])));
+		if(str_list.size() > 1)
+			new_task->setInterval(std::chrono::seconds(std::stoi(str_list[1])));
+		if(str_list.size() > 2)
+			new_task->setWorkTime(std::chrono::seconds(std::stoi(str_list[2])));
+	}
+	catch(const std::invalid_argument& e)
+	{
+		std::cout << "Bad arguments" << std::endl;
+		return;
+	}
+	catch(const std::out_of_range& e)
+	{
+		std::cout << "Bad arguments" << std::endl;
+		return;
+	}
+
+	taskList.push_front(new_task);
+	std::cout << "Added task with Id " << new_task->getId() << std::endl;
+
+	new_task->startAsync();
 }
 
 void SimpleTaskManager::info()
 {
+	std::for_each(taskList.begin(), taskList.end(), [](auto& task){task->info();});
 }
 
 void SimpleTaskManager::info(Task::Id id)
 {
+	std::shared_ptr<Task> task;
+	if(findTask(id, task))
+		task->info();
+	else
+		std::cout << "Task not found" << std::endl;
 }
 
 void SimpleTaskManager::pause(Task::Id id)
 {
+	std::shared_ptr<Task> task;
+	if(findTask(id, task))
+		task->pause();
+	else
+		std::cout << "Task not found" << std::endl;
 }
 
 void SimpleTaskManager::continue_task(Task::Id id)
 {
+	std::shared_ptr<Task> task;
+	if(findTask(id, task))
+		task->resume();
+	else
+		std::cout << "Task not found" << std::endl;
 }
 
 void SimpleTaskManager::kill(Task::Id id)
 {
+	std::shared_ptr<Task> task;
+	if(findTask(id, task))
+		task->stop();
+	else
+		std::cout << "Task not found" << std::endl;
 }
 
 void SimpleTaskManager::quit()
@@ -147,6 +318,24 @@ bool SimpleTaskManager::isCmdName(const std::string& cmd_name)
 {
 	const static std::set<std::string> allowed_cmd_names = {"add_task", "info", "pause", "continue", "kill", "quit"};
 	return allowed_cmd_names.find(cmd_name) != allowed_cmd_names.end();
+}
+
+bool SimpleTaskManager::findTask(const Task::Id& id, std::shared_ptr<Task>& task)
+{
+	auto it = std::find_if(taskList.begin(), taskList.end(), [&id](const auto& task)
+			{
+				return id == task->getId();
+			});
+	if(it != taskList.end())
+	{
+		task = *it;
+		return true;
+	}
+	else
+	{
+		task = nullptr;
+		return false;
+	}
 }
 
 } /* namespace task_manager */
